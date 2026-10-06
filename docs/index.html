@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AppRec: record any Mac app, get the notes</title>
+<meta name="description" content="AppRec is a menu bar app that records one app's audio plus your microphone, transcribes it on your Mac, writes a summary and names the file after what was said.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23F26B3A'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #EEF0F4;
+    --paper-2: #E2E5EC;
+    --ink: #16181D;
+    --muted: #5E6573;
+    --line: #C9CED8;
+    --record: #F26B3A;
+    --record-ink: #B8431A;
+    --glass: #2B2B30;
+    --glass-2: #3A3A40;
+    --glass-text: #F2F2F4;
+    --glass-muted: #9A9AA3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #17191E;
+      --paper-2: #20232A;
+      --ink: #ECEEF2;
+      --muted: #A0A6B3;
+      --line: #343843;
+      --record-ink: #FF8A5F;
+      --glass: #2E2E34;
+      --glass-2: #3D3D44;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 400 18px/1.55 "Schibsted Grotesk", system-ui, sans-serif;
+  }
+  a { color: inherit; text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible { outline: 3px solid var(--record); outline-offset: 3px; border-radius: 4px; }
+  code {
+    font: 500 0.88em/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--paper-2);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* Hero */
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 64px;
+    align-items: center;
+    padding: 72px 0 96px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; margin-bottom: 56px; }
+  .brand-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--record); }
+  h1 {
+    font-weight: 900;
+    font-size: clamp(44px, 6.4vw, 84px);
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+    margin: 0 0 28px;
+    max-width: 11ch;
+  }
+  .lede { font-size: 21px; line-height: 1.5; color: var(--muted); max-width: 34em; margin: 0 0 36px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 22px; border-radius: 999px;
+    font: 700 17px/1 "Schibsted Grotesk", system-ui, sans-serif;
+    text-decoration: none; border: 2px solid var(--ink); cursor: pointer;
+  }
+  .btn-primary { background: var(--ink); color: var(--paper); }
+  .btn-secondary { background: transparent; color: var(--ink); }
+  .note { font-size: 15px; color: var(--muted); margin-top: 18px; }
+
+  /* Popover replica */
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .menubar {
+    width: 100%; max-width: 380px; height: 30px; border-radius: 8px;
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+    display: flex; justify-content: flex-end; align-items: center; gap: 16px; padding: 0 14px;
+    color: var(--muted); font: 500 13px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  }
+  .menubar svg { width: 16px; height: 16px; }
+  .menubar .tray.recording { color: var(--record); }
+  .pop {
+    width: 100%; max-width: 380px;
+    background: var(--glass); color: var(--glass-text);
+    border-radius: 14px; padding: 16px;
+    box-shadow: 0 30px 60px -20px rgba(22, 24, 29, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    font: 400 13px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  }
+  .pop-app { display: flex; align-items: center; gap: 8px; background: var(--glass-2); border-radius: 7px; padding: 7px 9px; font-size: 14px; }
+  .app-icon { width: 22px; height: 22px; border-radius: 5px; background: linear-gradient(135deg, #5B5FC7, #7B83EB); display: grid; place-items: center; font: 700 12px/1 system-ui; color: #fff; }
+  .pop-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .check { width: 15px; height: 15px; border-radius: 4px; background: var(--record); display: grid; place-items: center; }
+  .check svg { width: 10px; height: 10px; color: #fff; }
+  .spacer { flex: 1; }
+  .timer { color: #FF5F57; font-variant-numeric: tabular-nums; visibility: hidden; }
+  .rec-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--record); color: #fff; border-radius: 7px; padding: 5px 11px; font-weight: 600;
+    transition: background-color 0.2s;
+  }
+  .rec-btn.stop { background: #E5484D; }
+  .rec-btn svg { width: 13px; height: 13px; }
+  .pop hr { border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 14px 0 12px; }
+  .pop-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 14px; }
+  .pop-head svg { width: 15px; height: 15px; color: var(--glass-muted); }
+  .rec-list { margin-top: 10px; display: grid; gap: 10px; min-height: 92px; }
+  .rec-item { display: flex; align-items: center; gap: 10px; }
+  .rec-item[hidden] { display: none; }
+  .rec-text { flex: 1; min-width: 0; }
+  .rec-name { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; transition: opacity 0.25s; }
+  .rec-meta { color: var(--glass-muted); font-size: 11.5px; margin-top: 2px; }
+  .icons { display: flex; gap: 9px; color: var(--glass-muted); align-items: center; }
+  .icons svg { width: 15px; height: 15px; display: block; }
+  .icons .slot { width: 15px; height: 15px; display: grid; place-items: center; }
+  .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.2); border-top-color: var(--glass-text); animation: spin 0.8s linear infinite; }
+  .status { color: var(--glass-muted); font-size: 11.5px; min-height: 16px; margin-top: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .replay {
+    background: none; border: 0; color: var(--muted); font: 500 14px/1 "Schibsted Grotesk", system-ui, sans-serif;
+    cursor: pointer; padding: 6px 8px; text-decoration: underline; text-underline-offset: 3px;
+  }
+
+  /* Sections */
+  section { padding: 88px 0; border-top: 1px solid var(--line); }
+  h2 { font-weight: 900; font-size: clamp(32px, 4vw, 48px); line-height: 1.05; letter-spacing: -0.025em; margin: 0 0 18px; max-width: 18ch; }
+  h3 { font-weight: 700; font-size: 22px; line-height: 1.25; letter-spacing: -0.01em; margin: 0 0 8px; }
+  .section-lede { color: var(--muted); max-width: 36em; margin: 0 0 48px; font-size: 19px; }
+  p { margin: 0 0 14px; }
+
+  /* Timeline */
+  .timeline { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; counter-reset: step; }
+  .timeline li { position: relative; padding-top: 30px; }
+  .timeline li::before {
+    content: ""; position: absolute; top: 6px; left: 0; right: -32px; height: 2px; background: var(--line);
+  }
+  .timeline li:last-child::before { right: 0; }
+  .timeline li::after {
+    counter-increment: step; content: counter(step);
+    position: absolute; top: -6px; left: 0; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--paper); border: 2px solid var(--ink); display: grid; place-items: center;
+    font: 700 13px/1 "Schibsted Grotesk", system-ui, sans-serif;
+  }
+  .timeline li:first-child::after { background: var(--record); border-color: var(--record); color: #fff; }
+  .when { display: block; color: var(--record-ink); font-weight: 700; font-size: 15px; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+  .timeline p { color: var(--muted); font-size: 16.5px; }
+
+  /* Feature rows */
+  .feature { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 56px; align-items: start; padding: 40px 0; }
+  .feature + .feature { border-top: 1px dashed var(--line); }
+  .feature p { color: var(--muted); max-width: 32em; }
+  .feature ul { color: var(--muted); padding-left: 1.1em; margin: 0; }
+  .feature li { margin-bottom: 6px; }
+
+  .doc {
+    background: #fff; color: #1C1D21; border-radius: 10px; padding: 22px 26px;
+    box-shadow: 0 1px 0 var(--line), 0 18px 40px -24px rgba(22, 24, 29, 0.35);
+    font-size: 15.5px; line-height: 1.5;
+  }
+  @media (prefers-color-scheme: dark) { .doc { background: #24262D; color: #E8EAEE; box-shadow: 0 0 0 1px var(--line); } }
+  .doc-file { font: 500 12.5px/1 ui-monospace, "SF Mono", Menlo, monospace; color: var(--muted); margin-bottom: 14px; }
+  .doc h4 { font-size: 22px; font-weight: 900; letter-spacing: -0.01em; margin: 0 0 12px; }
+  .doc h5 { font-size: 15px; font-weight: 700; margin: 16px 0 4px; }
+  .doc ul { margin: 0; padding-left: 1.1em; }
+  .doc p { margin: 0; }
+  .transcript { font-size: 16px; }
+  .transcript .lang { display: inline-block; font-weight: 700; color: var(--record-ink); margin-right: 6px; }
+
+  .finder { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--paper-2); font: 400 14px/1.3 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+  .finder-bar { padding: 9px 14px; display: flex; gap: 7px; align-items: center; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  .finder-bar i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); display: block; }
+  .finder-bar span { margin-left: 10px; }
+  .finder-row { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 8px 14px; }
+  .finder-row + .finder-row { border-top: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
+  .finder-row svg { width: 18px; height: 18px; color: var(--muted); }
+  .finder-row .size { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 13px; }
+  .finder-row.nested { padding-left: 46px; }
+  .finder-row.old { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--record); }
+
+  .pick { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 8px; border-radius: 999px; background: var(--paper-2); font-weight: 500; font-size: 16px; }
+  .chip b { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: #fff; font-size: 12px; }
+  .chip.on { background: var(--ink); color: var(--paper); }
+
+  /* Privacy */
+  .privacy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+  .privacy p { color: var(--muted); font-size: 16.5px; }
+
+  /* Transcription */
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+  .steps li { position: relative; padding: 0 0 28px 48px; }
+  .steps li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%;
+    border: 2px solid var(--ink); display: grid; place-items: center;
+    font: 700 14px/1 "Schibsted Grotesk", system-ui, sans-serif;
+  }
+  .steps li::after { content: ""; position: absolute; left: 15px; top: 36px; bottom: 6px; width: 2px; background: var(--line); }
+  .steps li:last-child::after { display: none; }
+  .steps li:last-child::before { background: var(--record); border-color: var(--record); color: #fff; }
+  .steps p { color: var(--muted); font-size: 16.5px; }
+
+  /* Requirements & build */
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; }
+  .req { list-style: none; padding: 0; margin: 0; }
+  .req li { padding: 12px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; }
+  .req li span:last-child { color: var(--muted); text-align: right; }
+  .source-heading { margin-top: 40px; }
+  .source-heading + .note { margin: 0 0 16px; }
+  .cmds { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+  .cmd-label { display: block; color: var(--muted); font-size: 15px; margin-bottom: 6px; }
+  .cmd { display: flex; align-items: flex-start; gap: 12px; background: var(--ink); color: var(--paper); border-radius: 10px; padding: 14px 14px 14px 18px; }
+  .cmd code {
+    flex: 1; min-width: 0; background: none; padding: 0; color: inherit;
+    font: 500 14.5px/1.7 ui-monospace, "SF Mono", Menlo, monospace;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .copy {
+    flex: none; border: 1px solid color-mix(in srgb, var(--paper) 35%, transparent); background: transparent; color: var(--paper);
+    border-radius: 6px; padding: 5px 10px; cursor: pointer; font: 600 13px/1.2 "Schibsted Grotesk", system-ui, sans-serif;
+  }
+  .copy:hover { background: color-mix(in srgb, var(--paper) 12%, transparent); }
+
+  footer { border-top: 1px solid var(--line); padding: 36px 0 56px; color: var(--muted); font-size: 15px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+  @media (min-width: 1100px) {
+    .menubar, .pop { max-width: 440px; }
+    .pop { font-size: 14.5px; padding: 18px; }
+    .pop-app { font-size: 15.5px; }
+    .rec-meta, .status { font-size: 12.5px; }
+  }
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: minmax(0, 1fr); gap: 48px; padding: 40px 0 64px; }
+    .brand { margin-bottom: 36px; }
+    .timeline { grid-template-columns: 1fr 1fr; row-gap: 44px; }
+    .timeline li::before { right: 0; }
+    .feature, .split { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .privacy { grid-template-columns: 1fr; gap: 28px; }
+  }
+  @media (max-width: 560px) {
+    body { font-size: 17px; }
+    .wrap { padding: 0 16px; }
+    .timeline { grid-template-columns: 1fr; }
+    section { padding: 64px 0; }
+    .lede { font-size: 19px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spin { animation: none; }
+    .rec-name, .rec-btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-wave" viewBox="0 0 16 16"><path d="M2 7v2M5 4v8M8 2v12M11 5v6M14 7v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></symbol>
+  <symbol id="i-rec" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="8" cy="8" r="3.4" fill="currentColor"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5" fill="currentColor"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 16 16"><path d="M1.5 4.5a1 1 0 011-1h3.6l1.4 1.5h6a1 1 0 011 1v6.5a1 1 0 01-1 1h-11a1 1 0 01-1-1z" stroke="currentColor" stroke-width="1.3" fill="none"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 16 16"><path d="M4 1.8h5.2L12.5 5v9.2H4z M9 1.8V5.2h3.4 M6 8h4.5M6 10.5h4.5" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></symbol>
+  <symbol id="i-list" viewBox="0 0 16 16"><rect x="1.8" y="2.5" width="12.4" height="11" rx="2" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M4.5 6h1M7 6h4.5M4.5 9h1M7 9h4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 16 16"><path d="M8 1.5l1.5 4 4 1.5-4 1.5L8 12.5l-1.5-4-4-1.5 4-1.5z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></symbol>
+  <symbol id="i-play" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M6.6 5.4l4 2.6-4 2.6z" fill="currentColor"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6.2 4.5V3h3.6v1.5M4.3 4.5l.7 9h6l.7-9" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></symbol>
+  <symbol id="i-audio" viewBox="0 0 18 18"><rect x="3" y="1.5" width="12" height="15" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 10v1M8 8v5M10 6.5v8M12 9v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
+  <symbol id="i-text" viewBox="0 0 18 18"><rect x="3" y="1.5" width="12" height="15" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 6h6M6 9h6M6 12h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <div class="brand"><span class="brand-dot" aria-hidden="true"></span>AppRec</div>
+      <h1>Record the call. Keep the notes.</h1>
+      <p class="lede">AppRec lives in your Mac's menu bar. Pick one app, like Teams, Zoom or a browser tab, and it records that app's sound plus your microphone. When you stop, it writes a transcript and a summary, and names the file after what was said.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="#install">Install with Homebrew</a>
+        <a class="btn btn-secondary" href="https://github.com/hackmajoris/apprec">View on GitHub</a>
+      </div>
+      <p class="note">Recording, transcription and summaries all run on your Mac.</p>
+    </div>
+
+    <div class="stage">
+      <div class="menubar" aria-hidden="true">
+        <span>Mon 6 Oct&nbsp;&nbsp;12:40</span>
+        <svg class="tray" id="tray"><use href="#i-wave"/></svg>
+      </div>
+      <div class="pop" role="img" aria-label="The AppRec menu bar window: Microsoft Teams is selected, a recording finishes, gets transcribed and summarized, and is renamed to Release planning for Friday.">
+        <div class="pop-app"><span class="app-icon">T</span>Microsoft Teams</div>
+        <div class="pop-row">
+          <span class="check"><svg><use href="#i-check"/></svg></span>
+          Include microphone
+          <span class="spacer"></span>
+          <span class="timer" id="timer">00:00:00</span>
+          <span class="rec-btn" id="recBtn"><svg><use href="#i-rec"/></svg><span>Record</span></span>
+        </div>
+        <hr>
+        <div class="pop-head">Recordings <svg><use href="#i-folder"/></svg></div>
+        <div class="rec-list">
+          <div class="rec-item" id="newItem" hidden>
+            <div class="rec-text">
+              <div class="rec-name" id="newName">Microsoft Teams 2026-10-06 12.40.07</div>
+              <div class="rec-meta">Oct 6, 2026 at 12:40 PM · 2.1 MB</div>
+            </div>
+            <div class="icons">
+              <span class="slot" id="slotText"><span class="spin"></span></span>
+              <span class="slot" id="slotSummary"></span>
+              <svg><use href="#i-play"/></svg>
+              <svg><use href="#i-trash"/></svg>
+            </div>
+          </div>
+          <div class="rec-item">
+            <div class="rec-text">
+              <div class="rec-name">Mandatul premierului desemnat</div>
+              <div class="rec-meta">Oct 6, 2026 at 11:02 AM · 3.4 MB</div>
+            </div>
+            <div class="icons">
+              <svg><use href="#i-doc"/></svg>
+              <svg><use href="#i-list"/></svg>
+              <svg><use href="#i-play"/></svg>
+              <svg><use href="#i-trash"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+      <button class="replay" id="replay" type="button">Play it again</button>
+    </div>
+  </header>
+</div>
+
+<section>
+  <div class="wrap">
+    <h2>What happens after you press Record</h2>
+    <p class="section-lede">You do one thing: start and stop. Everything else happens on its own, in this order.</p>
+    <ol class="timeline">
+      <li>
+        <span class="when">During the call</span>
+        <h3>Record one app</h3>
+        <p>Only the app you picked is captured, so notification sounds and music from other apps stay out. Your microphone is mixed in.</p>
+      </li>
+      <li>
+        <span class="when">When you stop</span>
+        <h3>Save the audio</h3>
+        <p>A normal <code>.m4a</code> file lands in its own folder inside Recordings. Play it from the menu or open it anywhere.</p>
+      </li>
+      <li>
+        <span class="when">Seconds later</span>
+        <h3>Write the transcript</h3>
+        <p>Speech becomes text on your Mac. The language is detected for you, so English, Romanian and dozens more just work.</p>
+      </li>
+      <li>
+        <span class="when">Right after</span>
+        <h3>Summarize and rename</h3>
+        <p>A short summary with key points and action items, and the file is renamed after the topic of the call.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What you get for every recording</h2>
+    <p class="section-lede">One folder per recording, with three plain files inside. No account, no database, nothing locked inside the app.</p>
+
+    <div class="feature">
+      <div>
+        <h3>A summary you can skim in ten seconds</h3>
+        <p>Each summary has the same three parts: the gist, the key points, and who agreed to do what. It's written in the language people spoke in the call.</p>
+      </div>
+      <div class="doc" aria-label="Example summary file">
+        <div class="doc-file">Release planning for Friday/summary.md</div>
+        <h4>Release planning for Friday</h4>
+        <h5>TL;DR</h5>
+        <p>Login fix lands Wednesday, docs by Thursday, and dark mode moves to the next release.</p>
+        <h5>Key points</h5>
+        <ul>
+          <li>Release is still set for Friday</li>
+          <li>Dark mode is dropped from this release after QA found too many bugs</li>
+        </ul>
+        <h5>Action items</h5>
+        <ul>
+          <li>Maria: finish the login fix by Wednesday</li>
+          <li>Tom: update the documentation by Thursday</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div>
+        <h3>A full transcript, in any language</h3>
+        <p>Whisper large-v3 turbo runs on your Mac's Neural Engine and GPU. On an M3 Max, a 30 second clip takes about five seconds. It recognizes the spoken language by itself, so you never pick one.</p>
+      </div>
+      <div class="doc transcript" aria-label="Example transcripts">
+        <div class="doc-file">Mandatul premierului desemnat/transcript.txt</div>
+        <p><span class="lang">ro</span>În Parlament, are la dispoziție 10 zile. În această perioadă, potrivit legii, poate să beneficieze de protecție SPP, dar și de un birou în care să lucreze.</p>
+        <p style="margin-top:14px"><span class="lang">en</span>Okay, so for the release on Friday, Maria will finish the login fix by Wednesday. Tom, can you update the docs?</p>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div>
+        <h3>Files named after what was said</h3>
+        <p>Instead of an app name and a timestamp, each recording's folder ends up with a short title from its summary. Your Recordings folder reads like a list of meetings.</p>
+      </div>
+      <div class="finder" aria-label="Recordings folder in Finder">
+        <div class="finder-bar"><i></i><i></i><i></i><span>~/Music/Recordings</span></div>
+        <div class="finder-row old"><svg><use href="#i-folder"/></svg><span>Microsoft Teams 2026-10-06 12.40.07</span><span class="size"></span></div>
+        <div class="finder-row"><svg><use href="#i-folder"/></svg><span>2026-10-06 12.40 Release planning for Friday</span><span class="size"></span></div>
+        <div class="finder-row nested"><svg><use href="#i-audio"/></svg><span>audio.m4a</span><span class="size">2.1 MB</span></div>
+        <div class="finder-row nested"><svg><use href="#i-text"/></svg><span>transcript.txt</span><span class="size">4 KB</span></div>
+        <div class="finder-row nested"><svg><use href="#i-text"/></svg><span>summary.md</span><span class="size">1 KB</span></div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div>
+        <h3>Pick exactly which app to record</h3>
+        <p>Search your running apps by name and choose one. Calls, browser tabs, video players: if it makes sound, AppRec can record it. Turn the microphone off when you only want the app.</p>
+      </div>
+      <div class="pick" aria-label="Example apps to record">
+        <span class="chip on"><b style="background:#5B5FC7">T</b>Microsoft Teams</span>
+        <span class="chip"><b style="background:#2D8CFF">Z</b>zoom.us</span>
+        <span class="chip"><b style="background:#FB542B">B</b>Brave Browser</span>
+        <span class="chip"><b style="background:#00A884">W</b>WhatsApp</span>
+        <span class="chip"><b style="background:#4A154B">S</b>Slack</span>
+        <span class="chip"><b style="background:#1DB954">S</b>Spotify</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Your calls stay on your Mac</h2>
+    <p class="section-lede">Meetings are private. AppRec is built so nothing has to leave your computer.</p>
+    <div class="privacy">
+      <div>
+        <h3>Transcription is local</h3>
+        <p>The speech model downloads once (about 630 MB) and then runs offline on Apple silicon. Audio is never uploaded. <a href="#transcription">How it works</a></p>
+      </div>
+      <div>
+        <h3>Summaries are local too</h3>
+        <p>With the free Ollama app, summaries come from a model running on your Mac, and AppRec can download it for you. Without Ollama, it uses Apple Intelligence on macOS 26, in English.</p>
+      </div>
+      <div>
+        <h3>Plain files you own</h3>
+        <p>Everything is saved in <code>~/Music/Recordings</code>. Back it up, search it with Spotlight, or delete it. Deleting in AppRec moves the recording's folder to the Trash.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="transcription">
+  <div class="wrap">
+    <h2>How transcription works</h2>
+    <p class="section-lede">AppRec uses Whisper, OpenAI's open speech recognition model, in a version built for Apple chips. There's no server to set up: the model is a file on your Mac, and AppRec runs it there.</p>
+    <div class="split">
+      <ol class="steps">
+        <li>
+          <span class="when">First time only</span>
+          <h3>Download the model</h3>
+          <p>The first time a recording is transcribed, AppRec downloads Whisper large-v3 turbo (about 630 MB) from Hugging Face, where Argmax publishes it for Apple's Core ML. The menu shows the download progress. It's saved in <code>~/Library/Application Support/AppRec</code> and never downloaded again.</p>
+        </li>
+        <li>
+          <span class="when">First time only</span>
+          <h3>Prepare it for your Mac</h3>
+          <p>macOS then optimizes the model for your chip's Neural Engine and GPU. This can take a few minutes, and the menu says so while it happens.</p>
+        </li>
+        <li>
+          <span class="when">Every recording after that</span>
+          <h3>Turn speech into text, offline</h3>
+          <p>AppRec reads the recording, splits it at pauses, recognizes the spoken language and writes <code>transcript.txt</code> next to the audio. No internet connection is needed, and the audio never leaves your Mac.</p>
+        </li>
+      </ol>
+      <ul class="req" aria-label="Transcription details">
+        <li><span>Model</span><span>Whisper large-v3 turbo</span></li>
+        <li><span>Runs with</span><span>WhisperKit, on the Neural Engine and GPU</span></li>
+        <li><span>Download</span><span>About 630 MB, once</span></li>
+        <li><span>Stored in</span><span>~/Library/Application Support/AppRec</span></li>
+        <li><span>Internet</span><span>Only for the first download</span></li>
+        <li><span>Languages</span><span>Detected automatically, about 100 supported</span></li>
+        <li><span>Speed</span><span>About 5 s for a 30 s clip on an M3 Max</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install AppRec</h2>
+    <p class="section-lede">One command with Homebrew, or build it from source with Xcode. AppRec isn't notarized by Apple yet, so Homebrew clears the macOS download warning for you.</p>
+    <div class="split">
+      <div>
+        <h3>What you need</h3>
+        <ul class="req">
+          <li><span>macOS</span><span>15 or later</span></li>
+          <li><span>Mac</span><span>Apple silicon</span></li>
+          <li><span>Summaries</span><span>Ollama, or Apple Intelligence on macOS 26</span></li>
+          <li><span>Disk</span><span>About 1 GB for the speech model</span></li>
+        </ul>
+        <p class="note">The first time you record, macOS asks for permission to capture screen and system audio and to use the microphone. AppRec only captures sound.</p>
+      </div>
+      <div>
+        <h3>With Homebrew</h3>
+        <ol class="cmds">
+          <li>
+            <span class="cmd-label">Install</span>
+            <div class="cmd"><code>brew install --cask hackmajoris/apps/apprec</code><button class="copy" type="button" aria-label="Copy: Install">Copy</button></div>
+          </li>
+          <li>
+            <span class="cmd-label">Update to the latest version</span>
+            <div class="cmd"><code>brew upgrade --cask apprec</code><button class="copy" type="button" aria-label="Copy: Update to the latest version">Copy</button></div>
+          </li>
+        </ol>
+
+        <h3 class="source-heading">Or build from source</h3>
+        <p class="note">Needs Xcode 26 or later and takes a few minutes.</p>
+        <ol class="cmds">
+          <li>
+            <span class="cmd-label">Get the code</span>
+            <div class="cmd"><code>git clone https://github.com/hackmajoris/apprec
+cd apprec</code><button class="copy" type="button" aria-label="Copy: Get the code">Copy</button></div>
+          </li>
+          <li>
+            <span class="cmd-label">Install the project generator</span>
+            <div class="cmd"><code>brew install xcodegen</code><button class="copy" type="button" aria-label="Copy: Install the project generator">Copy</button></div>
+          </li>
+          <li>
+            <span class="cmd-label">Build and copy to /Applications</span>
+            <div class="cmd"><code>make install</code><button class="copy" type="button" aria-label="Copy: Build and copy to /Applications">Copy</button></div>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <footer>
+    <span>AppRec, a menu bar recorder for macOS.</span>
+    <a href="https://github.com/hackmajoris/apprec">Source on GitHub</a>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const icon = (name) => `<svg><use href="#i-${name}"/></svg>`;
+  const spinner = '<span class="spin"></span>';
+  const els = {
+    tray: $("tray"), timer: $("timer"), btn: $("recBtn"), item: $("newItem"),
+    name: $("newName"), text: $("slotText"), summary: $("slotSummary"), status: $("status"), replay: $("replay"),
+  };
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let timers = [];
+
+  function setButton(recording) {
+    els.btn.classList.toggle("stop", recording);
+    els.btn.innerHTML = icon(recording ? "stop" : "rec") + `<span>${recording ? "Stop" : "Record"}</span>`;
+    els.tray.innerHTML = `<use href="#i-${recording ? "rec" : "wave"}"/>`;
+    els.tray.classList.toggle("recording", recording);
+    els.timer.style.visibility = recording ? "visible" : "hidden";
+  }
+
+  function finalState() {
+    setButton(false);
+    els.item.hidden = false;
+    els.name.textContent = "Release planning for Friday";
+    els.text.innerHTML = icon("doc");
+    els.summary.innerHTML = icon("list");
+    els.status.textContent = "";
+  }
+
+  function play() {
+    timers.forEach(clearTimeout);
+    timers = [];
+    if (reduced) { finalState(); return; }
+
+    const at = (ms, fn) => timers.push(setTimeout(fn, ms));
+    setButton(false);
+    els.item.hidden = true;
+    els.name.textContent = "Microsoft Teams 2026-10-06 12.40.07";
+    els.name.style.opacity = 1;
+    els.text.innerHTML = spinner;
+    els.summary.innerHTML = "";
+    els.status.textContent = "";
+    els.timer.textContent = "00:00:00";
+
+    at(700, () => setButton(true));
+    for (let s = 1; s <= 42; s++) {
+      at(700 + s * 55, () => { els.timer.textContent = `00:00:${String(s).padStart(2, "0")}`; });
+    }
+    at(3300, () => { setButton(false); els.item.hidden = false; els.status.textContent = "Transcribing on this Mac…"; });
+    at(5000, () => { els.text.innerHTML = icon("doc"); els.summary.innerHTML = spinner; els.status.textContent = "Summarizing…"; });
+    at(6800, () => { els.summary.innerHTML = icon("list"); els.status.textContent = ""; els.name.style.opacity = 0; });
+    at(7050, () => { els.name.textContent = "Release planning for Friday"; els.name.style.opacity = 1; });
+  }
+
+  els.replay.addEventListener("click", play);
+
+  document.querySelectorAll(".copy").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const text = button.previousElementSibling.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        button.textContent = "Copied";
+      } catch {
+        button.textContent = "Select and copy";
+      }
+      setTimeout(() => { button.textContent = "Copy"; }, 1600);
+    });
+  });
+  play();
+})();
+</script>
+</body>
+</html>

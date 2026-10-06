@@ -3,14 +3,20 @@ import AVFoundation
 import ScreenCaptureKit
 
 struct Recording: Identifiable, Hashable {
+    static let audioName = "audio.m4a"
+    static let transcriptName = "transcript.txt"
+    static let summaryName = "summary.md"
+
     let url: URL
     let date: Date
     let size: Int64
     let hasTranscript: Bool
     let hasSummary: Bool
     var id: URL { url }
-    var transcriptURL: URL { url.deletingPathExtension().appendingPathExtension("txt") }
-    var summaryURL: URL { url.deletingPathExtension().appendingPathExtension("summary.md") }
+    var folder: URL { url.deletingLastPathComponent() }
+    var name: String { folder.lastPathComponent }
+    var transcriptURL: URL { folder.appendingPathComponent(Self.transcriptName) }
+    var summaryURL: URL { folder.appendingPathComponent(Self.summaryName) }
 }
 
 struct RecordableApp: Identifiable, Hashable {
@@ -60,6 +66,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
 
     override init() {
         super.init()
+        moveFlatRecordingsIntoFolders()
         refreshRecordings()
     }
 
@@ -161,16 +168,17 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
             urls = []
         }
         recordings = urls
-            .filter { $0.pathExtension == "m4a" }
-            .compactMap { url in
+            .map { $0.appendingPathComponent(Recording.audioName) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .map { url in
                 let values = try? url.resourceValues(forKeys: Set(keys))
-                let base = url.deletingPathExtension()
+                let folder = url.deletingLastPathComponent()
                 return Recording(
                     url: url,
                     date: values?.creationDate ?? .distantPast,
                     size: Int64(values?.fileSize ?? 0),
-                    hasTranscript: FileManager.default.fileExists(atPath: base.appendingPathExtension("txt").path),
-                    hasSummary: FileManager.default.fileExists(atPath: base.appendingPathExtension("summary.md").path)
+                    hasTranscript: FileManager.default.fileExists(atPath: folder.appendingPathComponent(Recording.transcriptName).path),
+                    hasSummary: FileManager.default.fileExists(atPath: folder.appendingPathComponent(Recording.summaryName).path)
                 )
             }
             .sorted { $0.date > $1.date }
@@ -178,13 +186,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
 
     func delete(_ recording: Recording) {
         do {
-            try FileManager.default.trashItem(at: recording.url, resultingItemURL: nil)
-            if recording.hasTranscript {
-                try FileManager.default.trashItem(at: recording.transcriptURL, resultingItemURL: nil)
-            }
-            if recording.hasSummary {
-                try FileManager.default.trashItem(at: recording.summaryURL, resultingItemURL: nil)
-            }
+            try FileManager.default.trashItem(at: recording.folder, resultingItemURL: nil)
         } catch {
             self.error = error.localizedDescription
         }
@@ -196,7 +198,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
         defer { transcribing.remove(url) }
         do {
             let text = try await localTranscriber.transcribe(url) { [weak self] in self?.modelStatus = $0 }
-            try text.write(to: url.deletingPathExtension().appendingPathExtension("txt"), atomically: true, encoding: .utf8)
+            try text.write(to: url.deletingLastPathComponent().appendingPathComponent(Recording.transcriptName), atomically: true, encoding: .utf8)
             refreshRecordings()
         } catch {
             self.error = "Transcription failed: \(error.localizedDescription)"
@@ -210,11 +212,11 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
     func summarize(_ url: URL) async {
         guard summarizing.insert(url).inserted else { return }
         defer { summarizing.remove(url) }
-        let base = url.deletingPathExtension()
+        let folder = url.deletingLastPathComponent()
         do {
-            let transcript = try String(contentsOf: base.appendingPathExtension("txt"), encoding: .utf8)
+            let transcript = try String(contentsOf: folder.appendingPathComponent(Recording.transcriptName), encoding: .utf8)
             let summary = try await Summarizer.summarize(transcript)
-            try summary.write(to: base.appendingPathExtension("summary.md"), atomically: true, encoding: .utf8)
+            try summary.write(to: folder.appendingPathComponent(Recording.summaryName), atomically: true, encoding: .utf8)
             if let title = Self.title(from: summary) {
                 try rename(url, to: title)
             }
@@ -239,28 +241,42 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
         formatter.dateFormat = "yyyy-MM-dd HH.mm"
         let name = "\(formatter.string(from: created)) \(title)"
 
-        let oldBase = url.deletingPathExtension()
-        var newBase = folder.appendingPathComponent(name)
+        let oldFolder = url.deletingLastPathComponent()
+        var newFolder = folder.appendingPathComponent(name, isDirectory: true)
         var suffix = 2
-        while newBase != oldBase, FileManager.default.fileExists(atPath: newBase.appendingPathExtension("m4a").path) {
-            newBase = folder.appendingPathComponent("\(name) \(suffix)")
+        while newFolder.lastPathComponent != oldFolder.lastPathComponent, FileManager.default.fileExists(atPath: newFolder.path) {
+            newFolder = folder.appendingPathComponent("\(name) \(suffix)", isDirectory: true)
             suffix += 1
         }
-        guard newBase != oldBase else { return }
+        guard newFolder.lastPathComponent != oldFolder.lastPathComponent else { return }
+        try FileManager.default.moveItem(at: oldFolder, to: newFolder)
+    }
 
-        for ext in ["m4a", "txt", "summary.md"] {
-            let source = oldBase.appendingPathExtension(ext)
-            if FileManager.default.fileExists(atPath: source.path) {
-                try FileManager.default.moveItem(at: source, to: newBase.appendingPathExtension(ext))
+    private func moveFlatRecordingsIntoFolders() {
+        guard let urls = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil) else { return }
+        for audio in urls where audio.pathExtension == "m4a" {
+            let base = audio.deletingPathExtension()
+            let target = folder.appendingPathComponent(base.lastPathComponent, isDirectory: true)
+            do {
+                try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
+                for (ext, name) in [("m4a", Recording.audioName), ("txt", Recording.transcriptName), ("summary.md", Recording.summaryName)] {
+                    let source = base.appendingPathExtension(ext)
+                    if FileManager.default.fileExists(atPath: source.path) {
+                        try FileManager.default.moveItem(at: source, to: target.appendingPathComponent(name))
+                    }
+                }
+            } catch {
+                self.error = "Could not move \(audio.lastPathComponent) into a folder: \(error.localizedDescription)"
             }
         }
     }
 
     private func makeOutputURL() throws -> URL {
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        return folder.appendingPathComponent("\(appName) \(formatter.string(from: .now)).m4a")
+        let recordingFolder = folder.appendingPathComponent("\(appName) \(formatter.string(from: .now))", isDirectory: true)
+        try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
+        return recordingFolder.appendingPathComponent(Recording.audioName)
     }
 
     private static func mixdown(_ source: URL, to destination: URL) async throws {

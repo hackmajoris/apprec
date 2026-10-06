@@ -388,7 +388,7 @@ private struct RecordingRow: View {
     }
 
     private var title: String {
-        let name = recording.url.deletingPathExtension().lastPathComponent
+        let name = recording.name
         guard let prefix = name.range(of: #"^\d{4}-\d{2}-\d{2} \d{2}\.\d{2} "#, options: .regularExpression) else { return name }
         return String(name[prefix.upperBound...])
     }
@@ -398,7 +398,7 @@ private struct RecordingRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .lineLimit(2)
-                    .help(recording.url.deletingPathExtension().lastPathComponent)
+                    .help(recording.name)
                 Text("\(recording.date.formatted(date: .abbreviated, time: .shortened)) · \(recording.size.formatted(.byteCount(style: .file)))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -450,7 +450,7 @@ private struct RecordingRow: View {
         .buttonStyle(.borderless)
         .contextMenu {
             Button("Show in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([recording.url])
+                NSWorkspace.shared.activateFileViewerSelecting([recording.folder])
             }
         }
     }

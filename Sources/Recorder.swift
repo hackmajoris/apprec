@@ -202,7 +202,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
             self.error = "Transcription failed: \(error.localizedDescription)"
             return
         }
-        if Summarizer.isAvailable {
+        if await Summarizer.isAvailable() {
             await summarize(url)
         }
     }
@@ -215,9 +215,44 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
             let transcript = try String(contentsOf: base.appendingPathExtension("txt"), encoding: .utf8)
             let summary = try await Summarizer.summarize(transcript)
             try summary.write(to: base.appendingPathExtension("summary.md"), atomically: true, encoding: .utf8)
+            if let title = Self.title(from: summary) {
+                try rename(url, to: title)
+            }
             refreshRecordings()
         } catch {
             self.error = "Summary failed: \(error.localizedDescription)"
+        }
+    }
+
+    private static func title(from summary: String) -> String? {
+        guard let line = summary.split(separator: "\n").first, line.hasPrefix("# ") else { return nil }
+        let title = line.dropFirst(2)
+            .components(separatedBy: CharacterSet(charactersIn: "/:\\").union(.controlCharacters))
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ".")))
+        return title.isEmpty ? nil : String(title.prefix(60))
+    }
+
+    private func rename(_ url: URL, to title: String) throws {
+        let created = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? .now
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH.mm"
+        let name = "\(formatter.string(from: created)) \(title)"
+
+        let oldBase = url.deletingPathExtension()
+        var newBase = folder.appendingPathComponent(name)
+        var suffix = 2
+        while newBase != oldBase, FileManager.default.fileExists(atPath: newBase.appendingPathExtension("m4a").path) {
+            newBase = folder.appendingPathComponent("\(name) \(suffix)")
+            suffix += 1
+        }
+        guard newBase != oldBase else { return }
+
+        for ext in ["m4a", "txt", "summary.md"] {
+            let source = oldBase.appendingPathExtension(ext)
+            if FileManager.default.fileExists(atPath: source.path) {
+                try FileManager.default.moveItem(at: source, to: newBase.appendingPathExtension(ext))
+            }
         }
     }
 

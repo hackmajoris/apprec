@@ -3,37 +3,29 @@ import FoundationModels
 
 enum SummarizerError: LocalizedError {
     case unavailable
-    case invalidEndpoint
-    case missingModel
     case server(Int, String)
 
     var errorDescription: String? {
         switch self {
-        case .unavailable: "No summary model available."
-        case .invalidEndpoint: "Summary endpoint is not a valid URL."
-        case .missingModel: "Summary model is not set."
+        case .unavailable: "No summary model available. Install Ollama or enable Apple Intelligence."
         case let .server(status, body): "Server returned \(status): \(body)"
         }
     }
 }
 
 enum Summarizer {
-    static let endpointKey = "summaryEndpoint"
-    static let tokenKey = "summaryToken"
-    static let modelKey = "summaryModel"
-
-    private static var hasEndpoint: Bool {
-        !(UserDefaults.standard.string(forKey: endpointKey) ?? "").isEmpty
-    }
-
-    static var isAvailable: Bool {
-        if hasEndpoint { return true }
+    static var isAppleAvailable: Bool {
         if #available(macOS 26, *) { return AppleSummarizer.isAvailable }
         return false
     }
 
+    static func isAvailable() async -> Bool {
+        if isAppleAvailable { return true }
+        return await Ollama.isReady()
+    }
+
     static func summarize(_ transcript: String) async throws -> String {
-        if hasEndpoint { return try await ChatSummarizer.summarize(transcript) }
+        if await Ollama.isReady() { return try await Ollama.summarize(transcript) }
         if #available(macOS 26, *), AppleSummarizer.isAvailable { return try await AppleSummarizer.summarize(transcript) }
         throw SummarizerError.unavailable
     }
@@ -49,6 +41,8 @@ private enum AppleSummarizer {
 
     @Generable
     struct Summary {
+        @Guide(description: "Short descriptive title, 3 to 6 words")
+        let title: String
         @Guide(description: "One or two sentences with the gist")
         let tldr: String
         @Guide(description: "Facts, decisions and numbers discussed")
@@ -67,6 +61,8 @@ private enum AppleSummarizer {
 
         let bullets = { (items: [String]) in items.isEmpty ? "None" : items.map { "- \($0)" }.joined(separator: "\n") }
         return """
+            # \(summary.title)
+
             ## TL;DR
             \(summary.tldr)
 

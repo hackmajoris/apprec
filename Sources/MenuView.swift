@@ -3,8 +3,8 @@ import SwiftUI
 struct MenuView: View {
     @ObservedObject var recorder: Recorder
     @ObservedObject var player: Player
+    @ObservedObject var ollama: Ollama
     @State private var listHeight: CGFloat = 0
-    @AppStorage(Summarizer.endpointKey) private var summaryEndpoint = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -106,7 +106,7 @@ struct MenuView: View {
 
             Divider()
 
-            SummarySettings()
+            SummarySettings(ollama: ollama)
 
             Divider()
 
@@ -117,35 +117,72 @@ struct MenuView: View {
         .onAppear {
             recorder.refreshApps()
             recorder.refreshRecordings()
+            Task { await ollama.refresh() }
         }
     }
 }
 
 extension MenuView {
     private func summarizeAction(for recording: Recording) -> (() -> Void)? {
-        guard recording.hasTranscript, !summaryEndpoint.isEmpty || Summarizer.isAvailable else { return nil }
+        guard recording.hasTranscript, ollama.state == .ready || Summarizer.isAppleAvailable else { return nil }
         return { Task { await recorder.summarize(recording.url) } }
     }
 }
 
 private struct SummarySettings: View {
-    @AppStorage(Summarizer.endpointKey) private var endpoint = ""
-    @AppStorage(Summarizer.tokenKey) private var token = ""
-    @AppStorage(Summarizer.modelKey) private var model = ""
+    @ObservedObject var ollama: Ollama
+    @AppStorage(Ollama.modelKey) private var model = Ollama.defaultModel
 
     var body: some View {
-        DisclosureGroup("Summary") {
+        DisclosureGroup("Summary configs") {
             VStack(alignment: .leading, spacing: 6) {
-                TextField("Endpoint", text: $endpoint, prompt: Text("Endpoint URL"))
-                SecureField("Token", text: $token, prompt: Text("Token (optional)"))
-                TextField("Model", text: $model, prompt: Text("Model"))
-                Text("Any OpenAI-compatible chat endpoint, e.g. Ollama. Leave empty to use Apple Intelligence (English only).")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                switch ollama.state {
+                case .unknown:
+                    ProgressView().controlSize(.small)
+                case .notInstalled:
+                    Text(fallbackText + " Install Ollama for better, multilingual summaries.")
+                    Link("Download Ollama", destination: Ollama.downloadURL)
+                case .notRunning:
+                    Text(fallbackText + " Ollama is installed but not running.")
+                    Button("Open Ollama") { Task { await ollama.open() } }
+                case .missingModel, .ready:
+                    modelPicker
+                    if let progress = ollama.pullProgress {
+                        ProgressView(value: progress) {
+                            Text("Downloading \(model)… \(Int(progress * 100))%")
+                        }
+                    } else if ollama.state == .missingModel {
+                        Button("Download \(model)") { Task { await ollama.pull() } }
+                    }
+                }
+                if let error = ollama.error {
+                    Text(error).foregroundStyle(.red)
+                }
             }
-            .textFieldStyle(.roundedBorder)
+            .font(.caption)
             .padding(.top, 6)
         }
+    }
+
+    private var fallbackText: String {
+        Summarizer.isAppleAvailable ? "Using Apple Intelligence (English only)." : "Summaries are off."
+    }
+
+    private var modelPicker: some View {
+        Picker("Model", selection: $model) {
+            ForEach(Array(Set(ollama.models + [Ollama.defaultModel, model])).sorted(), id: \.self) { name in
+                Text(label(for: name)).tag(name)
+            }
+        }
+        .disabled(ollama.pullProgress != nil)
+        .onChange(of: model) { Task { await ollama.refresh() } }
+    }
+
+    private func label(for name: String) -> String {
+        var label = name
+        if name == Ollama.defaultModel { label += " (recommended)" }
+        if !ollama.models.contains(name) { label += " – not downloaded" }
+        return label
     }
 }
 
@@ -350,12 +387,18 @@ private struct RecordingRow: View {
         Duration.seconds(seconds).formatted(.time(pattern: .minuteSecond))
     }
 
+    private var title: String {
+        let name = recording.url.deletingPathExtension().lastPathComponent
+        guard let prefix = name.range(of: #"^\d{4}-\d{2}-\d{2} \d{2}\.\d{2} "#, options: .regularExpression) else { return name }
+        return String(name[prefix.upperBound...])
+    }
+
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(recording.url.deletingPathExtension().lastPathComponent)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                Text(title)
+                    .lineLimit(2)
+                    .help(recording.url.deletingPathExtension().lastPathComponent)
                 Text("\(recording.date.formatted(date: .abbreviated, time: .shortened)) · \(recording.size.formatted(.byteCount(style: .file)))")
                     .font(.caption)
                     .foregroundStyle(.secondary)

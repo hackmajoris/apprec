@@ -18,7 +18,12 @@ jobs:
       - run: make dist
 
       - name: Publish GitHub release
-        run: gh release create "$GITHUB_REF_NAME" build/AppRec.zip --generate-notes
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" build/AppRec.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" build/AppRec.zip --generate-notes
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
 

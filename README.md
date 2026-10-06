@@ -119,28 +119,3 @@ The Xcode project is generated from `project.yml` by XcodeGen and isn't checked 
 | `Sources/Player.swift` | Playback |
 | `docs/` | The website, published with GitHub Pages |
 | `packaging/apprec.rb` | Homebrew cask template |
-
-## Releasing
-
-Push a version tag:
-
-```sh
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-The release workflow builds `AppRec.zip`, publishes a GitHub release and updates `Casks/apprec.rb` in [hackmajoris/homebrew-apps](https://github.com/hackmajoris/homebrew-apps) from `packaging/apprec.rb`.
-
-This needs a repository secret `HOMEBREW_TAP_TOKEN`: a fine-grained token with **Contents: Read and write** access to `hackmajoris/homebrew-apps` only.
-
-```sh
-pbpaste | gh secret set HOMEBREW_TAP_TOKEN --repo hackmajoris/apprec
-```
-
-The website is deployed by the Pages workflow on every push to `main` that changes `docs/`.
-
-## Known limitations
-
-- The app is ad-hoc signed, not notarized. macOS may ask for recording and microphone permission again after an update.
-- Apple Intelligence summaries are English only.
-- The app's version number is fixed at `1.0` in `project.yml` and doesn't follow release tags.

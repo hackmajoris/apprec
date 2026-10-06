@@ -4,7 +4,6 @@ struct MenuView: View {
     @ObservedObject var recorder: Recorder
     @ObservedObject var player: Player
     @State private var listHeight: CGFloat = 0
-    @AppStorage(Transcriber.endpointKey) private var endpoint = ""
     @AppStorage(Summarizer.endpointKey) private var summaryEndpoint = ""
 
     var body: some View {
@@ -107,7 +106,6 @@ struct MenuView: View {
 
             Divider()
 
-            TranscriptionSettings()
             SummarySettings()
 
             Divider()
@@ -127,27 +125,6 @@ extension MenuView {
     private func summarizeAction(for recording: Recording) -> (() -> Void)? {
         guard recording.hasTranscript, !summaryEndpoint.isEmpty || Summarizer.isAvailable else { return nil }
         return { Task { await recorder.summarize(recording.url) } }
-    }
-}
-
-private struct TranscriptionSettings: View {
-    @AppStorage(Transcriber.endpointKey) private var endpoint = ""
-    @AppStorage(Transcriber.tokenKey) private var token = ""
-    @AppStorage(Transcriber.modelKey) private var model = ""
-
-    var body: some View {
-        DisclosureGroup("Transcription") {
-            VStack(alignment: .leading, spacing: 6) {
-                TextField("Endpoint", text: $endpoint, prompt: Text("Endpoint URL"))
-                SecureField("Token", text: $token, prompt: Text("Token (optional)"))
-                TextField("Model", text: $model, prompt: Text("Model (default \(Transcriber.defaultModel))"))
-                Text("Optional OpenAI-compatible endpoint. Leave empty to transcribe on this Mac.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .textFieldStyle(.roundedBorder)
-            .padding(.top, 6)
-        }
     }
 }
 
@@ -341,7 +318,7 @@ private struct RecordingRow: View {
     let recording: Recording
     @ObservedObject var player: Player
     let isTranscribing: Bool
-    let onTranscribe: (() -> Void)?
+    let onTranscribe: () -> Void
     let isSummarizing: Bool
     let onSummarize: (() -> Void)?
     let onDelete: () -> Void
@@ -394,7 +371,7 @@ private struct RecordingRow: View {
             } else if isTranscribing {
                 ProgressView()
                     .controlSize(.small)
-            } else if let onTranscribe {
+            } else {
                 Button(action: onTranscribe) {
                     Image(systemName: "text.bubble")
                 }

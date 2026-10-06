@@ -195,9 +195,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
         guard transcribing.insert(url).inserted else { return }
         defer { transcribing.remove(url) }
         do {
-            let text = (UserDefaults.standard.string(forKey: Transcriber.endpointKey) ?? "").isEmpty
-                ? try await localTranscriber.transcribe(url) { [weak self] in self?.modelStatus = $0 }
-                : try await Transcriber.transcribe(url)
+            let text = try await localTranscriber.transcribe(url) { [weak self] in self?.modelStatus = $0 }
             try text.write(to: url.deletingPathExtension().appendingPathExtension("txt"), atomically: true, encoding: .utf8)
             refreshRecordings()
         } catch {

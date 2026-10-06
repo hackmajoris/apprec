@@ -1,0 +1,30 @@
+name: AppRec
+options:
+  bundleIdPrefix: com.hackmajoris
+  deploymentTarget:
+    macOS: "15.0"
+packages:
+  WhisperKit:
+    url: https://github.com/argmaxinc/WhisperKit
+    exactVersion: 1.1.0
+targets:
+  AppRec:
+    type: application
+    platform: macOS
+    sources: [Sources]
+    dependencies:
+      - package: WhisperKit
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleShortVersionString: "1.0"
+        LSUIElement: true
+        NSMicrophoneUsageDescription: Records your voice together with the selected app's audio.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hackmajoris.AppRec
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_HARDENED_RUNTIME: NO

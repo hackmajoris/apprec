@@ -1,0 +1,24 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build
+        run: make release

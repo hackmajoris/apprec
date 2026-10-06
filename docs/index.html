@@ -220,6 +220,7 @@
   .req { list-style: none; padding: 0; margin: 0; }
   .req li { padding: 12px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 16px; }
   .req li span:last-child { color: var(--muted); text-align: right; }
+  .req small { display: block; font-size: 14px; line-height: 1.4; margin-top: 3px; color: var(--muted); opacity: 0.85; }
   .source-heading { margin-top: 40px; }
   .source-heading + .note { margin: 0 0 16px; }
   .cmds { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
@@ -509,10 +510,11 @@
       <div>
         <h3>What you need</h3>
         <ul class="req">
-          <li><span>macOS</span><span>15 or later</span></li>
+          <li><span>macOS</span><span>15 or later<small>26 recommended: adds Apple Intelligence summaries when Ollama isn't installed</small></span></li>
           <li><span>Mac</span><span>Apple silicon</span></li>
-          <li><span>Summaries</span><span>Ollama, or Apple Intelligence on macOS 26</span></li>
-          <li><span>Disk</span><span>About 1 GB for the speech model</span></li>
+          <li><span>Memory</span><span>8 GB<small>16 GB or more recommended, for the better summary model</small></span></li>
+          <li><span>Disk</span><span>About 1 GB for the speech model<small>About 10 GB with Ollama and its recommended model</small></span></li>
+          <li><span>Summaries</span><span>Optional<small>Ollama recommended, for summaries in the language of the recording</small></span></li>
         </ul>
         <p class="note">The first time you record, macOS asks for permission to capture screen and system audio and to use the microphone. AppRec only captures sound.</p>
       </div>

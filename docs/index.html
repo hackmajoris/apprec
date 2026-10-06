@@ -22,6 +22,7 @@
     --glass-2: #3A3A40;
     --glass-text: #F2F2F4;
     --glass-muted: #9A9AA3;
+    --safe: #23804A;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -33,6 +34,7 @@
       --record-ink: #FF8A5F;
       --glass: #2E2E34;
       --glass-2: #3D3D44;
+      --safe: #4CC27A;
     }
   }
 
@@ -198,8 +200,22 @@
   .chip.on { background: var(--ink); color: var(--paper); }
 
   /* Privacy */
-  .privacy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
-  .privacy p { color: var(--muted); font-size: 16.5px; }
+  .privacy-title { font-size: clamp(40px, 6vw, 72px); max-width: 14ch; letter-spacing: -0.035em; line-height: 1; margin-bottom: 24px; }
+  .conns { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+  .conn {
+    display: grid; grid-template-columns: 14px minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.6fr);
+    gap: 18px; align-items: baseline; padding: 18px 0; border-bottom: 1px solid var(--line);
+  }
+  .conn-dot { width: 10px; height: 10px; border-radius: 50%; align-self: center; }
+  .conn.never .conn-dot, .conn.local .conn-dot, .key .local { background: var(--safe); }
+  .conn.once .conn-dot, .key .once { background: transparent; border: 2px solid var(--muted); }
+  .conn-what { font-weight: 700; }
+  .conn-when { color: var(--ink); }
+  .conn.never .conn-when { color: var(--safe); font-weight: 700; }
+  .key { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 18px 0 0; color: var(--muted); font-size: 15px; }
+  .key span { display: inline-flex; align-items: center; gap: 8px; }
+  .key i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .conn-why { color: var(--muted); font-size: 16.5px; }
 
   /* Transcription */
   .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
@@ -251,7 +267,8 @@
     .timeline { grid-template-columns: 1fr 1fr; row-gap: 44px; }
     .timeline li::before { right: 0; }
     .feature, .split { grid-template-columns: minmax(0, 1fr); gap: 28px; }
-    .privacy { grid-template-columns: 1fr; gap: 28px; }
+    .conn { grid-template-columns: 14px minmax(0, 1fr); row-gap: 4px; }
+    .conn-when, .conn-why { grid-column: 2; }
   }
   @media (max-width: 560px) {
     body { font-size: 17px; }
@@ -293,7 +310,7 @@
         <a class="btn btn-primary" href="#install">Install with Homebrew</a>
         <a class="btn btn-secondary" href="https://github.com/hackmajoris/apprec">View on GitHub</a>
       </div>
-      <p class="note">Recording, transcription and summaries all run on your Mac.</p>
+      <p class="note">Everything runs on your Mac. No cloud, no account, no uploads. <a href="#privacy">What AppRec connects to</a></p>
     </div>
 
     <div class="stage">
@@ -344,6 +361,52 @@
     </div>
   </header>
 </div>
+
+<section id="privacy" class="privacy">
+  <div class="wrap">
+    <h2 class="privacy-title">Your recordings never leave your Mac.</h2>
+    <p class="section-lede">Calls are private, so AppRec does all the work on your computer: recording, transcription and summaries. There's no cloud service and no account. This is every connection AppRec makes.</p>
+    <ul class="conns" aria-label="Every network connection AppRec makes">
+        <li class="conn never">
+          <span class="conn-dot" aria-hidden="true"></span>
+          <span class="conn-what">Your audio, transcripts and summaries</span>
+          <span class="conn-when">Never sent anywhere</span>
+          <span class="conn-why">They're plain files in <code>~/Music/Recordings</code> and nowhere else.</span>
+        </li>
+        <li class="conn once">
+          <span class="conn-dot" aria-hidden="true"></span>
+          <span class="conn-what">huggingface.co</span>
+          <span class="conn-when">Once, before the first transcription</span>
+          <span class="conn-why">Downloads the speech model. Nothing about you or your recordings is sent.</span>
+        </li>
+        <li class="conn local">
+          <span class="conn-dot" aria-hidden="true"></span>
+          <span class="conn-what">Ollama, on this Mac</span>
+          <span class="conn-when">Each summary</span>
+          <span class="conn-why">The transcript goes to Ollama at <code>localhost</code>, which runs on your Mac, not on a server.</span>
+        </li>
+        <li class="conn once">
+          <span class="conn-dot" aria-hidden="true"></span>
+          <span class="conn-what">Ollama's model library</span>
+          <span class="conn-when">Once per model, when you click Download</span>
+          <span class="conn-why">Ollama downloads the summary model you picked.</span>
+        </li>
+        <li class="conn local">
+          <span class="conn-dot" aria-hidden="true"></span>
+          <span class="conn-what">Apple Intelligence</span>
+          <span class="conn-when">Each summary, if Ollama isn't installed</span>
+          <span class="conn-why">Runs the on-device model built into macOS 26.</span>
+        </li>
+        <li class="conn never">
+          <span class="conn-dot" aria-hidden="true"></span>
+          <span class="conn-what">Analytics, crash reports, accounts</span>
+          <span class="conn-when">None</span>
+          <span class="conn-why">AppRec has no tracking and no sign-in.</span>
+        </li>
+    </ul>
+    <p class="key"><span><i class="local"></i>Stays on your Mac</span><span><i class="once"></i>Uses the internet, never with your recordings</span></p>
+  </div>
+</section>
 
 <section>
   <div class="wrap">
@@ -441,27 +504,6 @@
         <span class="chip"><b style="background:#00A884">W</b>WhatsApp</span>
         <span class="chip"><b style="background:#4A154B">S</b>Slack</span>
         <span class="chip"><b style="background:#1DB954">S</b>Spotify</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <h2>Your calls stay on your Mac</h2>
-    <p class="section-lede">Meetings are private. AppRec is built so nothing has to leave your computer.</p>
-    <div class="privacy">
-      <div>
-        <h3>Transcription is local</h3>
-        <p>The speech model downloads once (about 630 MB) and then runs offline on Apple silicon. Audio is never uploaded. <a href="#transcription">How it works</a></p>
-      </div>
-      <div>
-        <h3>Summaries are local too</h3>
-        <p>With the free Ollama app, summaries come from a model running on your Mac, and AppRec can download it for you. Without Ollama, it uses Apple Intelligence on macOS 26, in English.</p>
-      </div>
-      <div>
-        <h3>Plain files you own</h3>
-        <p>Everything is saved in <code>~/Music/Recordings</code>. Back it up, search it with Spotlight, or delete it. Deleting in AppRec moves the recording's folder to the Trash.</p>
       </div>
     </div>
   </div>

@@ -28,3 +28,6 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
         ENABLE_HARDENED_RUNTIME: NO
+      configs:
+        Release:
+          SWIFT_TREAT_WARNINGS_AS_ERRORS: YES

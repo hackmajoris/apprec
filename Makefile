@@ -1,7 +1,8 @@
 APP := AppRec
 DERIVED := build
 PRODUCTS := $(DERIVED)/Build/Products
-XCODEBUILD := xcodebuild -quiet -project $(APP).xcodeproj -scheme $(APP) -derivedDataPath $(DERIVED) -destination 'platform=macOS,arch=$(shell uname -m)'
+VERSION ?= $(shell git describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//')
+XCODEBUILD := xcodebuild -quiet -project $(APP).xcodeproj -scheme $(APP) -derivedDataPath $(DERIVED) -destination 'platform=macOS,arch=$(shell uname -m)' $(if $(VERSION),MARKETING_VERSION=$(VERSION))
 
 .PHONY: help build project release run install dist clean site
 .DEFAULT_GOAL := help

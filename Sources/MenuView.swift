@@ -26,30 +26,43 @@ struct MenuView: View {
 
                 if let startedAt = recorder.startedAt {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(Duration.seconds(context.date.timeIntervalSince(startedAt)).formatted(.time(pattern: .hourMinuteSecond)))
+                        let end = recorder.pausedAt ?? context.date
+                        Text(Duration.seconds(end.timeIntervalSince(startedAt) - recorder.pausedDuration).formatted(.time(pattern: .hourMinuteSecond)))
                             .monospacedDigit()
-                            .foregroundStyle(.red)
+                            .foregroundStyle(recorder.isPaused ? .orange : .red)
                     }
                 }
 
-                Button {
-                    Task {
-                        if recorder.isRecording {
-                            await recorder.stop()
-                        } else {
-                            await recorder.start()
-                        }
+                if recorder.isRecording {
+                    Button {
+                        recorder.isPaused ? recorder.resume() : recorder.pause()
+                    } label: {
+                        Label(
+                            recorder.isPaused ? "Resume" : "Pause",
+                            systemImage: recorder.isPaused ? "record.circle" : "pause.fill"
+                        )
                     }
-                } label: {
-                    Label(
-                        recorder.isRecording ? "Stop" : "Record",
-                        systemImage: recorder.isRecording ? "stop.fill" : "record.circle"
-                    )
+                    .disabled(recorder.isBusy)
+
+                    Button {
+                        Task { await recorder.stop() }
+                    } label: {
+                        Label("Done", systemImage: "checkmark")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(recorder.isBusy)
+                } else {
+                    Button {
+                        Task { await recorder.start() }
+                    } label: {
+                        Label("Record", systemImage: "record.circle")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(recorder.selectedBundleID == nil || recorder.isBusy)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(recorder.isRecording ? .red : .accentColor)
-                .keyboardShortcut(.defaultAction)
-                .disabled(recorder.selectedBundleID == nil || recorder.isBusy)
             }
 
             if let status = recorder.modelStatus {
@@ -110,7 +123,13 @@ struct MenuView: View {
 
             Divider()
 
-            Button("Quit") { NSApp.terminate(nil) }
+            HStack {
+                Button("Quit") { NSApp.terminate(nil) }
+                Spacer()
+                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
+                    .foregroundStyle(.secondary)
+                Link("Changelog", destination: URL(string: "https://github.com/hackmajoris/apprec/releases")!)
+            }
         }
         .padding()
         .frame(width: 340)

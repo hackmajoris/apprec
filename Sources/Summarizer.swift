@@ -45,7 +45,7 @@ private enum AppleSummarizer {
         let title: String
         @Guide(description: "One or two sentences with the gist")
         let tldr: String
-        @Guide(description: "Facts, decisions and numbers discussed")
+        @Guide(description: "Facts, decisions and numbers discussed, each starting with the [mm:ss] time from the transcript line where it was said")
         let keyPoints: [String]
         @Guide(description: "Tasks only, each as 'Name: task'. Empty if there are none")
         let actionItems: [String]
@@ -80,7 +80,7 @@ private enum AppleSummarizer {
         var notes: [String] = []
         for chunk in chunks(text) {
             notes.append(try await respond(
-                instructions: "Condense this part of a recording transcript into short factual notes in English. Keep names, numbers, decisions and tasks.",
+                instructions: "Condense this part of a recording transcript into short factual notes in English. Keep names, numbers, decisions and tasks, each with its [mm:ss] time.",
                 prompt: chunk
             ))
         }

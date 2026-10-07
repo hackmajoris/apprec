@@ -112,7 +112,7 @@ final class Ollama: ObservableObject {
         ## TL;DR
         One or two sentences, no list.
         ## Key points
-        Bullets with the facts, decisions and numbers discussed.
+        Bullets with the facts, decisions and numbers discussed. Start each bullet with the [mm:ss] time from the transcript line where it was said.
         ## Action items
         Bullets of tasks only, as "Name: task". Write "None" if there are none.
         Never repeat the same point in two sections. Do not invent details. Reply with the summary only.

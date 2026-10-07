@@ -16,11 +16,21 @@ final class LocalTranscriber {
             language: nil,
             detectLanguage: true,
             skipSpecialTokens: true,
-            withoutTimestamps: true,
+            withoutTimestamps: false,
             chunkingStrategy: .vad
         )
         let results = try await kit.transcribe(audioPath: file.path, decodeOptions: options)
-        return results.map(\.text).joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return results.flatMap(\.segments)
+            .map { ($0.start, $0.text.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .filter { !$0.1.isEmpty }
+            .map { "[\(Self.timestamp($0.0))] \($0.1)" }
+            .joined(separator: "\n")
+    }
+
+    private static func timestamp(_ seconds: Float) -> String {
+        let total = Int(seconds)
+        let (h, m, s) = (total / 3600, total / 60 % 60, total % 60)
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%02d:%02d", m, s)
     }
 
     private func load(onStatus: @escaping @MainActor (String?) -> Void) async throws -> WhisperKit {

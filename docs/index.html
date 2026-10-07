@@ -194,6 +194,38 @@
   .finder-row.nested { padding-left: 46px; }
   .finder-row.old { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--record); }
 
+  .ts-file { color: var(--muted); font: 500 0.88em/1 ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .jump { display: grid; gap: 12px; max-width: 440px; }
+  .jump .pop { max-width: none; }
+  .jump .icons .hovered { color: var(--glass-text); background: rgba(255, 255, 255, 0.12); border-radius: 5px; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.12); }
+  .toggle { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; display: grid; border-radius: 50%; }
+  .scrub { display: flex; align-items: center; gap: 10px; margin-top: 10px; color: var(--glass-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  .scrub[hidden] { display: none; }
+  .track { position: relative; flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.16); }
+  .track-fill { position: absolute; inset: 0 auto 0 0; border-radius: 2px; background: var(--record); }
+  .track-knob { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
+  .peek {
+    position: relative; background: var(--glass-2); color: var(--glass-text); border-radius: 10px; padding: 14px 16px;
+    box-shadow: 0 24px 48px -20px rgba(22, 24, 29, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+    font: 400 13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  }
+  .peek::before {
+    content: ""; position: absolute; top: -6px; right: 65.5px; width: 12px; height: 12px;
+    background: var(--glass-2); transform: rotate(45deg); border-radius: 2px 0 0 0;
+  }
+  .peek b { display: block; font-size: 14px; margin: 10px 0 3px; }
+  .peek b:first-child { margin-top: 0; font-size: 15px; }
+  .peek ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; color: inherit; }
+  .peek li { padding: 2px 6px 2px 18px; text-indent: -12px; margin: 0 -6px; border-radius: 5px; }
+  .peek li::before { content: "• "; }
+  .peek li.active { background: rgba(255, 255, 255, 0.08); }
+  .ts {
+    background: none; border: 0; padding: 0; cursor: pointer; color: #FF9A73;
+    font: inherit; font-variant-numeric: tabular-nums; text-decoration: underline; text-underline-offset: 2px;
+  }
+  .ts:hover { color: #FFB89C; }
+
   .pick { display: flex; flex-wrap: wrap; gap: 10px; }
   .chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px 8px 8px; border-radius: 999px; background: var(--paper-2); font-weight: 500; font-size: 16px; }
   .chip b { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: #fff; font-size: 12px; }
@@ -295,6 +327,7 @@
   <symbol id="i-list" viewBox="0 0 16 16"><rect x="1.8" y="2.5" width="12.4" height="11" rx="2" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M4.5 6h1M7 6h4.5M4.5 9h1M7 9h4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></symbol>
   <symbol id="i-sparkle" viewBox="0 0 16 16"><path d="M8 1.5l1.5 4 4 1.5-4 1.5L8 12.5l-1.5-4-4-1.5 4-1.5z" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linejoin="round"/></symbol>
   <symbol id="i-play" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M6.6 5.4l4 2.6-4 2.6z" fill="currentColor"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M6.6 5.6v4.8M9.4 5.6v4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
   <symbol id="i-trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6.2 4.5V3h3.6v1.5M4.3 4.5l.7 9h6l.7-9" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></symbol>
   <symbol id="i-audio" viewBox="0 0 18 18"><rect x="3" y="1.5" width="12" height="15" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 10v1M8 8v5M10 6.5v8M12 9v2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
   <symbol id="i-text" viewBox="0 0 18 18"><rect x="3" y="1.5" width="12" height="15" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M6 6h6M6 9h6M6 12h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></symbol>
@@ -426,7 +459,7 @@
       <li>
         <span class="when">Seconds later</span>
         <h3>Write the transcript</h3>
-        <p>Speech becomes text on your Mac. The language is detected for you, so English, Romanian and dozens more just work.</p>
+        <p>Speech becomes text on your Mac, with the time on every line. The language is detected for you, so English, Romanian and dozens more just work.</p>
       </li>
       <li>
         <span class="when">Right after</span>
@@ -445,7 +478,7 @@
     <div class="feature">
       <div>
         <h3>A summary you can skim in ten seconds</h3>
-        <p>Each summary has the same three parts: the gist, the key points, and who agreed to do what. It's written in the language people spoke in the call.</p>
+        <p>Each summary has the same three parts: the gist, the key points, and who agreed to do what. Every key point starts with the time it was said. It's written in the language people spoke in the call.</p>
       </div>
       <div class="doc" aria-label="Example summary file">
         <div class="doc-file">Release planning for Friday/summary.md</div>
@@ -454,8 +487,8 @@
         <p>Login fix lands Wednesday, docs by Thursday, and dark mode moves to the next release.</p>
         <h5>Key points</h5>
         <ul>
-          <li>Release is still set for Friday</li>
-          <li>Dark mode is dropped from this release after QA found too many bugs</li>
+          <li><span class="ts-file">[00:04]</span> Release is still set for Friday</li>
+          <li><span class="ts-file">[00:19]</span> Dark mode is dropped from this release after QA found too many bugs</li>
         </ul>
         <h5>Action items</h5>
         <ul>
@@ -467,13 +500,58 @@
 
     <div class="feature">
       <div>
+        <h3>Jump to the moment it was said</h3>
+        <p>Hover the transcript or summary icon to read it right in the menu. Click any time to play the recording from that moment, so you can check a name or a number without scrolling through the whole call.</p>
+        <p>Try it: click a time in the summary.</p>
+      </div>
+      <div class="jump">
+        <div class="pop">
+          <div class="rec-item">
+            <div class="rec-text">
+              <div class="rec-name">Q4 roadmap review</div>
+              <div class="rec-meta">Oct 2, 2026 at 3:00 PM · 36.8 MB</div>
+            </div>
+            <div class="icons">
+              <svg aria-hidden="true"><use href="#i-doc"/></svg>
+              <svg class="hovered" aria-hidden="true"><use href="#i-list"/></svg>
+              <button class="toggle" id="jumpToggle" type="button" aria-label="Play"><svg><use href="#i-play"/></svg></button>
+              <svg aria-hidden="true"><use href="#i-trash"/></svg>
+            </div>
+          </div>
+          <div class="scrub" id="jumpScrub" hidden>
+            <div class="track" aria-hidden="true"><span class="track-fill" id="jumpFill"></span><span class="track-knob" id="jumpKnob"></span></div>
+            <span id="jumpTime" aria-live="polite">00:00 / 38:20</span>
+          </div>
+        </div>
+        <div class="peek" aria-label="Summary preview">
+          <b>Q4 roadmap review</b>
+          <b>TL;DR</b>
+          Search ships first in Q4. The billing rewrite waits until January.
+          <b>Key points</b>
+          <ul>
+            <li><button class="ts" type="button" data-t="221">[03:41]</button> Search redesign is the top priority for Q4</li>
+            <li><button class="ts" type="button" data-t="728">[12:08]</button> Billing rewrite moves to January, two engineers are on leave</li>
+            <li><button class="ts" type="button" data-t="1315">[21:55]</button> Mobile crash rate is down to 0.4% after the last release</li>
+            <li><button class="ts" type="button" data-t="1997">[33:17]</button> Design contractor budget approved at 18,000 euros</li>
+          </ul>
+          <b>Action items</b>
+          <ul>
+            <li>Ana: share the search mockups by Monday</li>
+            <li>Radu: draft the January billing plan</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div>
         <h3>A full transcript, in any language</h3>
         <p>Whisper large-v3 turbo runs on your Mac's Neural Engine and GPU. On an M3 Max, a 30 second clip takes about five seconds. It recognizes the spoken language by itself, so you never pick one.</p>
       </div>
       <div class="doc transcript" aria-label="Example transcripts">
         <div class="doc-file">Mandatul premierului desemnat/transcript.txt</div>
-        <p><span class="lang">ro</span>În Parlament, are la dispoziție 10 zile. În această perioadă, potrivit legii, poate să beneficieze de protecție SPP, dar și de un birou în care să lucreze.</p>
-        <p style="margin-top:14px"><span class="lang">en</span>Okay, so for the release on Friday, Maria will finish the login fix by Wednesday. Tom, can you update the docs?</p>
+        <p><span class="lang">ro</span><span class="ts-file">[00:00]</span> În Parlament, are la dispoziție 10 zile.<br><span class="ts-file">[00:04]</span> În această perioadă, potrivit legii, poate să beneficieze de protecție SPP, dar și de un birou în care să lucreze.</p>
+        <p style="margin-top:14px"><span class="lang">en</span><span class="ts-file">[00:00]</span> Okay, so for the release on Friday, Maria will finish the login fix by Wednesday.<br><span class="ts-file">[00:06]</span> Tom, can you update the docs?</p>
       </div>
     </div>
 
@@ -528,7 +606,7 @@
         <li>
           <span class="when">Every recording after that</span>
           <h3>Turn speech into text, offline</h3>
-          <p>AppRec reads the recording, splits it at pauses, recognizes the spoken language and writes <code>transcript.txt</code> next to the audio. No internet connection is needed, and the audio never leaves your Mac.</p>
+          <p>AppRec reads the recording, splits it at pauses, recognizes the spoken language and writes <code>transcript.txt</code> next to the audio, with the time each line starts. No internet connection is needed, and the audio never leaves your Mac.</p>
         </li>
       </ol>
       <ul class="req" aria-label="Transcription details">
@@ -538,6 +616,7 @@
         <li><span>Stored in</span><span>~/Library/Application Support/AppRec</span></li>
         <li><span>Internet</span><span>Only for the first download</span></li>
         <li><span>Languages</span><span>Detected automatically, about 100 supported</span></li>
+        <li><span>Timestamps</span><span>On every line, as [mm:ss]</span></li>
         <li><span>Speed</span><span>About 5 s for a 30 s clip on an M3 Max</span></li>
       </ul>
     </div>
@@ -657,6 +736,44 @@ cd apprec</code><button class="copy" type="button" aria-label="Copy: Get the cod
   }
 
   els.replay.addEventListener("click", play);
+
+  const jump = { scrub: $("jumpScrub"), fill: $("jumpFill"), knob: $("jumpKnob"), time: $("jumpTime"), toggle: $("jumpToggle") };
+  const duration = 2300;
+  const clock = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  let position = 0;
+  let ticker = null;
+
+  function renderJump() {
+    const pct = `${(position / duration) * 100}%`;
+    jump.fill.style.width = pct;
+    jump.knob.style.left = pct;
+    jump.time.textContent = `${clock(position)} / ${clock(duration)}`;
+    const playing = ticker !== null;
+    jump.toggle.innerHTML = icon(playing ? "pause" : "play");
+    jump.toggle.setAttribute("aria-label", playing ? "Pause" : "Play");
+  }
+
+  function setPlaying(on) {
+    clearInterval(ticker);
+    ticker = on ? setInterval(() => {
+      position = Math.min(position + 1, duration);
+      if (position === duration) setPlaying(false);
+      renderJump();
+    }, 1000) : null;
+    jump.scrub.hidden = false;
+    renderJump();
+  }
+
+  document.querySelectorAll(".ts").forEach((button) => {
+    button.setAttribute("aria-label", `Play from ${button.textContent.slice(1, -1)}`);
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".peek li.active").forEach((li) => li.classList.remove("active"));
+      button.closest("li").classList.add("active");
+      position = Number(button.dataset.t);
+      setPlaying(true);
+    });
+  });
+  jump.toggle.addEventListener("click", () => setPlaying(ticker === null));
 
   document.querySelectorAll(".copy").forEach((button) => {
     button.addEventListener("click", async () => {

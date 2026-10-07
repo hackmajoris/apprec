@@ -410,7 +410,7 @@ private struct RecordingRow: View {
                 } label: {
                     Image(systemName: "doc.text")
                 }
-                .help("Open transcript")
+                .modifier(FilePreview(file: recording.transcriptURL) { player.play(recording.url, at: $0) })
             } else if isTranscribing {
                 ProgressView()
                     .controlSize(.small)
@@ -426,7 +426,7 @@ private struct RecordingRow: View {
                 } label: {
                     Image(systemName: "list.bullet.rectangle")
                 }
-                .help("Open summary")
+                .modifier(FilePreview(file: recording.summaryURL) { player.play(recording.url, at: $0) })
             } else if isSummarizing {
                 ProgressView()
                     .controlSize(.small)
@@ -453,5 +453,82 @@ private struct RecordingRow: View {
                 NSWorkspace.shared.activateFileViewerSelecting([recording.folder])
             }
         }
+    }
+}
+
+private struct FilePreview: ViewModifier {
+    let file: URL
+    let onSeek: (TimeInterval) -> Void
+    @State private var overAnchor = false
+    @State private var overPopover = false
+    @State private var isShown = false
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { overAnchor = $0; update() }
+            .popover(isPresented: $isShown, arrowEdge: .bottom) {
+                FileText(file: file, onSeek: onSeek)
+                    .onHover { overPopover = $0; update() }
+            }
+    }
+
+    private func update() {
+        let hovering = overAnchor || overPopover
+        guard hovering != isShown else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(hovering ? 400 : 300))
+            if (overAnchor || overPopover) == hovering { isShown = hovering }
+        }
+    }
+}
+
+private struct FileText: View {
+    private static let seekScheme = "apprec-seek"
+
+    let file: URL
+    let onSeek: (TimeInterval) -> Void
+    @State private var lines: [String] = []
+    @State private var height: CGFloat = 0
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 4) {
+                ForEach(lines.indices, id: \.self) { line(lines[$0]) }
+            }
+            .padding(12)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        }
+        .frame(width: 380, height: min(height, 420))
+        .environment(\.openURL, OpenURLAction { url in
+            guard url.scheme == Self.seekScheme, let seconds = TimeInterval(url.absoluteString.dropFirst(Self.seekScheme.count + 1)) else {
+                return .systemAction
+            }
+            onSeek(seconds)
+            return .handled
+        })
+        .task { lines = (try? String(contentsOf: file, encoding: .utf8))?.components(separatedBy: .newlines) ?? [] }
+    }
+
+    @ViewBuilder
+    private func line(_ text: String) -> some View {
+        if text.hasPrefix("#") {
+            Text(Self.linked(text.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)))
+                .font(.headline)
+                .padding(.top, 4)
+        } else if text.hasPrefix("- ") {
+            Text(Self.linked("• " + text.dropFirst(2)))
+        } else {
+            Text(Self.linked(text))
+        }
+    }
+
+    static func linked(_ line: String) -> AttributedString {
+        let markdown = line.replacing(#/\[(?:(\d+):)?(\d{1,2}):(\d{2})\]/#) { match in
+            let (stamp, h, m, s) = match.output
+            let seconds = (h.flatMap { Int($0) } ?? 0) * 3600 + Int(m)! * 60 + Int(s)!
+            return "[\\[\(stamp.dropFirst().dropLast())\\]](\(seekScheme):\(seconds))"
+        }
+        return (try? AttributedString(markdown: markdown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(line)
     }
 }

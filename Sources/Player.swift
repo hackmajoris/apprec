@@ -36,6 +36,14 @@ final class Player: NSObject, ObservableObject, AVAudioPlayerDelegate {
         }
     }
 
+    func play(_ url: URL, at time: TimeInterval) {
+        if url != current { toggle(url) }
+        guard url == current, let player else { return }
+        player.currentTime = time
+        player.play()
+        isPlaying = true
+    }
+
     func stop() {
         player?.stop()
         player = nil

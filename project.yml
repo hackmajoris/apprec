@@ -17,12 +17,13 @@ targets:
     info:
       path: Sources/Info.plist
       properties:
-        CFBundleShortVersionString: "1.0"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
         LSUIElement: true
         NSMicrophoneUsageDescription: Records your voice together with the selected app's audio.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hackmajoris.AppRec
+        MARKETING_VERSION: "0.0.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         SWIFT_VERSION: "5.0"
         CODE_SIGN_IDENTITY: "-"

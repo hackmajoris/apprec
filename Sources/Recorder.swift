@@ -47,6 +47,8 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published var selectedBundleID: String?
     @Published var includeMicrophone = true
     @Published private(set) var startedAt: Date?
+    @Published private(set) var pausedAt: Date?
+    @Published private(set) var pausedDuration: TimeInterval = 0
     @Published private(set) var isBusy = false
     @Published private(set) var recordings: [Recording] = []
     @Published private(set) var error: String?
@@ -55,6 +57,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published private(set) var summarizing: Set<URL> = []
 
     var isRecording: Bool { stream != nil }
+    var isPaused: Bool { pausedAt != nil }
 
     private var stream: SCStream?
     private var writer: TrackWriter?
@@ -122,9 +125,24 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
             self.writer = writer
             appName = targets.first?.applicationName ?? bundleID
             startedAt = .now
+            pausedAt = nil
+            pausedDuration = 0
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    func pause() {
+        guard let writer, !isPaused else { return }
+        writer.pause()
+        pausedAt = .now
+    }
+
+    func resume() {
+        guard let writer, let pausedAt else { return }
+        writer.resume()
+        pausedDuration += Date.now.timeIntervalSince(pausedAt)
+        self.pausedAt = nil
     }
 
     func stop() async {
@@ -136,6 +154,8 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
         self.stream = nil
         self.writer = nil
         startedAt = nil
+        pausedAt = nil
+        pausedDuration = 0
 
         do {
             let tempURL = try await writer.finish()
@@ -294,6 +314,9 @@ final class TrackWriter: NSObject, SCStreamOutput, @unchecked Sendable {
     private let appInput: AVAssetWriterInput
     private let micInput: AVAssetWriterInput?
     private var started = false
+    private var pausedAt: CMTime?
+    private var resumedAt = CMTime.zero
+    private var offset = CMTime.zero
 
     init(url: URL, includeMicrophone: Bool) throws {
         writer = try AVAssetWriter(outputURL: url, fileType: .mov)
@@ -329,14 +352,48 @@ final class TrackWriter: NSObject, SCStreamOutput, @unchecked Sendable {
         }
         guard let input else { return }
 
+        let time = sampleBuffer.presentationTimeStamp
+        if let pausedAt, time >= pausedAt { return }
+        guard time >= resumedAt, let buffer = shifted(sampleBuffer) else { return }
+
         if !started {
             writer.startWriting()
-            writer.startSession(atSourceTime: sampleBuffer.presentationTimeStamp)
+            writer.startSession(atSourceTime: buffer.presentationTimeStamp)
             started = true
         }
         if input.isReadyForMoreMediaData {
-            input.append(sampleBuffer)
+            input.append(buffer)
         }
+    }
+
+    // Sample times come from the host clock, so pause and resume are stamped with it too.
+    func pause() {
+        let now = CMClockGetTime(CMClockGetHostTimeClock())
+        queue.async { [self] in
+            if pausedAt == nil { pausedAt = now }
+        }
+    }
+
+    func resume() {
+        let now = CMClockGetTime(CMClockGetHostTimeClock())
+        queue.async { [self] in
+            guard let pausedAt else { return }
+            offset = offset + now - pausedAt
+            resumedAt = now
+            self.pausedAt = nil
+        }
+    }
+
+    private func shifted(_ buffer: CMSampleBuffer) -> CMSampleBuffer? {
+        guard offset != .zero else { return buffer }
+        guard var timings = try? buffer.sampleTimingInfos() else { return nil }
+        for i in timings.indices {
+            timings[i].presentationTimeStamp = timings[i].presentationTimeStamp - offset
+            if timings[i].decodeTimeStamp.isValid {
+                timings[i].decodeTimeStamp = timings[i].decodeTimeStamp - offset
+            }
+        }
+        return try? CMSampleBuffer(copying: buffer, withNewTiming: timings)
     }
 
     func finish() async throws -> URL {

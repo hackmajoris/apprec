@@ -10,7 +10,7 @@ struct AppRecApp: App {
         MenuBarExtra {
             MenuView(recorder: recorder, player: player, ollama: ollama)
         } label: {
-            Image(systemName: recorder.isRecording ? "record.circle.fill" : "waveform")
+            Image(systemName: recorder.isPaused ? "pause.circle.fill" : recorder.isRecording ? "record.circle.fill" : "waveform")
         }
         .menuBarExtraStyle(.window)
     }

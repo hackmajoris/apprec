@@ -2,7 +2,11 @@ name: Build
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -11,6 +15,7 @@ concurrency:
 jobs:
   build:
     runs-on: macos-26
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -19,6 +24,12 @@ jobs:
 
       - name: Install XcodeGen
         run: brew install xcodegen
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: build/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('project.yml') }}
 
       - name: Build
         run: make release

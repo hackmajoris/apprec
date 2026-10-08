@@ -3,11 +3,13 @@ import FoundationModels
 
 enum SummarizerError: LocalizedError {
     case unavailable
+    case timedOut
     case server(Int, String)
 
     var errorDescription: String? {
         switch self {
         case .unavailable: "No summary model available. Install Ollama or enable Apple Intelligence."
+        case .timedOut: "Apple Intelligence took too long. Open Ollama to summarize long recordings."
         case let .server(status, body): "Server returned \(status): \(body)"
         }
     }
@@ -34,6 +36,7 @@ enum Summarizer {
 @available(macOS 26, *)
 private enum AppleSummarizer {
     private static let chunkSize = 6_000
+    private static let timeout = Duration.seconds(900)
 
     static var isAvailable: Bool {
         SystemLanguageModel.default.availability == .available
@@ -52,6 +55,18 @@ private enum AppleSummarizer {
     }
 
     static func summarize(_ transcript: String) async throws -> String {
+        try await withThrowingTaskGroup(of: String.self) { group in
+            group.addTask { try await summarizeNow(transcript) }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw SummarizerError.timedOut
+            }
+            defer { group.cancelAll() }
+            return try await group.next()!
+        }
+    }
+
+    private static func summarizeNow(_ transcript: String) async throws -> String {
         let notes = try await condense(transcript)
         let session = LanguageModelSession(instructions: """
             You summarize recording transcripts, which may be in any language. Always write in English. \
@@ -79,6 +94,7 @@ private enum AppleSummarizer {
         guard text.count > chunkSize else { return text }
         var notes: [String] = []
         for chunk in chunks(text) {
+            try Task.checkCancellation()
             notes.append(try await respond(
                 instructions: "Condense this part of a recording transcript into short factual notes in English. Keep names, numbers, decisions and tasks, each with its [mm:ss] time.",
                 prompt: chunk

@@ -119,3 +119,14 @@ The Xcode project is generated from `project.yml` by XcodeGen and isn't checked 
 | `Sources/Player.swift` | Playback |
 | `docs/` | The website, published with GitHub Pages |
 | `packaging/apprec.rb` | Homebrew cask template |
+
+## Credits
+
+- [Whisper](https://github.com/openai/whisper) by OpenAI, the speech recognition model, MIT License.
+- [WhisperKit](https://github.com/argmaxinc/WhisperKit) by Argmax, which runs Whisper on Apple silicon, MIT License.
+- [argmaxinc/whisperkit-coreml](https://huggingface.co/argmaxinc/whisperkit-coreml), the Core ML build of the model AppRec downloads.
+- [Ollama](https://github.com/ollama/ollama), which runs the summary models locally, MIT License.
+
+## License
+
+[MIT](LICENSE). Licenses of bundled third-party code are in [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).

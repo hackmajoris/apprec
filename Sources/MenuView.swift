@@ -119,6 +119,9 @@ struct MenuView: View {
 
             Divider()
 
+            RecordingSettings()
+                .disabled(recorder.isRecording)
+
             SummarySettings(ollama: ollama)
 
             Divider()
@@ -145,6 +148,23 @@ extension MenuView {
     private func summarizeAction(for recording: Recording) -> (() -> Void)? {
         guard recording.hasTranscript, ollama.state == .ready || Summarizer.isAppleAvailable else { return nil }
         return { Task { await recorder.summarize(recording.url) } }
+    }
+}
+
+private struct RecordingSettings: View {
+    @AppStorage(Recorder.maxMinutesKey) private var maxMinutes = Recorder.defaultMaxMinutes
+
+    var body: some View {
+        DisclosureGroup("Recording configs") {
+            Picker("Auto-stop after", selection: $maxMinutes) {
+                Text("Never").tag(0)
+                ForEach([30, 60, 120, 180, 240], id: \.self) { minutes in
+                    Text(Duration.seconds(minutes * 60).formatted(.units(allowed: [.hours, .minutes]))).tag(minutes)
+                }
+            }
+            .font(.caption)
+            .padding(.top, 6)
+        }
     }
 }
 

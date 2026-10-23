@@ -22,8 +22,8 @@ release: project ## Build a release version
 	$(XCODEBUILD) -configuration Release build
 
 run: build ## Build and launch the debug app
-	-pkill -x $(APP) && sleep 1
-	open $(PRODUCTS)/Debug/$(APP).app
+	-pkill -x "$(APP) Debug" && sleep 1
+	open "$(PRODUCTS)/Debug/$(APP) Debug.app"
 
 install: release ## Build a release and install it to /Applications
 	-pkill -x $(APP) && sleep 1

@@ -33,5 +33,9 @@ targets:
         CODE_SIGN_STYLE: Manual
         ENABLE_HARDENED_RUNTIME: NO
       configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.hackmajoris.AppRec.debug
+          PRODUCT_NAME: AppRec Debug
+          CODE_SIGN_IDENTITY: "Apple Development: Alexandru ILIES (R99PBQAH87)"
         Release:
           SWIFT_TREAT_WARNINGS_AS_ERRORS: YES

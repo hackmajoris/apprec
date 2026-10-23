@@ -56,21 +56,27 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
     @Published private(set) var modelStatus: String?
     @Published private(set) var summarizing: Set<URL> = []
 
+    nonisolated static let maxMinutesKey = "maxRecordingMinutes"
+    nonisolated static let defaultMaxMinutes = 60
+
     var isRecording: Bool { stream != nil }
     var isPaused: Bool { pausedAt != nil }
 
     private var stream: SCStream?
     private var writer: TrackWriter?
-    private var appName = ""
+    private var recordingName = ""
+    private var autoStopTask: Task<Void, Never>?
     private let localTranscriber = LocalTranscriber()
 
     let folder = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Music/Recordings", isDirectory: true)
+    private var partialFolder: URL { folder.appendingPathComponent(".inprogress", isDirectory: true) }
 
     override init() {
         super.init()
         moveFlatRecordingsIntoFolders()
         refreshRecordings()
+        Task { await recoverPartialRecordings() }
     }
 
     func refreshApps() {
@@ -108,10 +114,12 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
             config.height = 2
             config.minimumFrameInterval = CMTime(value: 1, timescale: 1)
 
-            let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("mov")
-            let writer = try TrackWriter(url: tempURL, includeMicrophone: includeMicrophone)
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+            let name = "\(targets.first?.applicationName ?? bundleID) \(formatter.string(from: .now))"
+            try FileManager.default.createDirectory(at: partialFolder, withIntermediateDirectories: true)
+            let partialURL = partialFolder.appendingPathComponent(name).appendingPathExtension("mov")
+            let writer = try TrackWriter(url: partialURL, includeMicrophone: includeMicrophone)
 
             let filter = SCContentFilter(display: display, including: targets, exceptingWindows: [])
             let stream = SCStream(filter: filter, configuration: config, delegate: self)
@@ -123,10 +131,11 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
 
             self.stream = stream
             self.writer = writer
-            appName = targets.first?.applicationName ?? bundleID
+            recordingName = name
             startedAt = .now
             pausedAt = nil
             pausedDuration = 0
+            scheduleAutoStop()
         } catch {
             self.error = error.localizedDescription
         }
@@ -136,6 +145,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
         guard let writer, !isPaused else { return }
         writer.pause()
         pausedAt = .now
+        autoStopTask?.cancel()
     }
 
     func resume() {
@@ -143,6 +153,21 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
         writer.resume()
         pausedDuration += Date.now.timeIntervalSince(pausedAt)
         self.pausedAt = nil
+        scheduleAutoStop()
+    }
+
+    private func scheduleAutoStop() {
+        autoStopTask?.cancel()
+        let minutes = UserDefaults.standard.object(forKey: Self.maxMinutesKey) as? Int ?? Self.defaultMaxMinutes
+        guard minutes > 0, let startedAt else { return }
+        let remaining = TimeInterval(minutes * 60) - (Date.now.timeIntervalSince(startedAt) - pausedDuration)
+        autoStopTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(remaining, 0)))
+            guard !Task.isCancelled, let self else { return }
+            autoStopTask = nil
+            error = "Recording stopped automatically after \(Duration.seconds(minutes * 60).formatted(.units(allowed: [.hours, .minutes])))."
+            await stop()
+        }
     }
 
     func stop() async {
@@ -151,6 +176,7 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
         defer { isBusy = false }
 
         try? await stream.stopCapture()
+        autoStopTask?.cancel()
         self.stream = nil
         self.writer = nil
         startedAt = nil
@@ -158,14 +184,35 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
         pausedDuration = 0
 
         do {
-            let tempURL = try await writer.finish()
-            defer { try? FileManager.default.removeItem(at: tempURL) }
-            let outputURL = try makeOutputURL()
-            try await Self.mixdown(tempURL, to: outputURL)
-            refreshRecordings()
-            Task { await transcribe(outputURL) }
+            let partialURL = try await writer.finish()
+            try await save(partialURL, as: recordingName)
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    private func save(_ partialURL: URL, as name: String) async throws {
+        let outputURL = try makeOutputURL(name)
+        do {
+            try await Self.mixdown(partialURL, to: outputURL)
+        } catch {
+            try? FileManager.default.removeItem(at: outputURL.deletingLastPathComponent())
+            throw error
+        }
+        try? FileManager.default.removeItem(at: partialURL)
+        refreshRecordings()
+        Task { await transcribe(outputURL) }
+    }
+
+    // Partial files left behind by a crash, force quit or power loss are readable up to the last movie fragment.
+    private func recoverPartialRecordings() async {
+        guard let urls = try? FileManager.default.contentsOfDirectory(at: partialFolder, includingPropertiesForKeys: nil) else { return }
+        for url in urls where url.pathExtension == "mov" {
+            do {
+                try await save(url, as: url.deletingPathExtension().lastPathComponent + " (recovered)")
+            } catch {
+                self.error = "Could not recover \(url.path): \(error.localizedDescription)"
+            }
         }
     }
 
@@ -291,10 +338,8 @@ final class Recorder: NSObject, ObservableObject, SCStreamDelegate {
         }
     }
 
-    private func makeOutputURL() throws -> URL {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        let recordingFolder = folder.appendingPathComponent("\(appName) \(formatter.string(from: .now))", isDirectory: true)
+    private func makeOutputURL(_ name: String) throws -> URL {
+        let recordingFolder = folder.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: recordingFolder, withIntermediateDirectories: true)
         return recordingFolder.appendingPathComponent(Recording.audioName)
     }
@@ -320,6 +365,7 @@ final class TrackWriter: NSObject, SCStreamOutput, @unchecked Sendable {
 
     init(url: URL, includeMicrophone: Bool) throws {
         writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+        writer.movieFragmentInterval = CMTime(seconds: 10, preferredTimescale: 600)
         appInput = Self.makeInput(channels: 2)
         writer.add(appInput)
         if includeMicrophone {

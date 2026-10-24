@@ -4,6 +4,7 @@ struct MenuView: View {
     @ObservedObject var recorder: Recorder
     @ObservedObject var player: Player
     @ObservedObject var ollama: Ollama
+    @ObservedObject var updater: Updater
     @State private var listHeight: CGFloat = 0
 
     var body: some View {
@@ -71,7 +72,7 @@ struct MenuView: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let error = recorder.error ?? player.error {
+            if let error = recorder.error ?? player.error ?? updater.error {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -129,9 +130,23 @@ struct MenuView: View {
             HStack {
                 Button("Quit") { NSApp.terminate(nil) }
                 Spacer()
-                Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
+                if updater.canUpdate, updater.updateAvailable, let latest = updater.latest {
+                    Button {
+                        Task { await updater.install() }
+                    } label: {
+                        if updater.isInstalling {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Label("Update to v\(latest.version)", systemImage: "arrow.down.circle")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(updater.isInstalling || recorder.isRecording || !recorder.transcribing.isEmpty || !recorder.summarizing.isEmpty)
+                    .help(recorder.isRecording ? "Finish recording before updating" : "Install and relaunch")
+                }
+                Text("v\(updater.currentVersion)")
                     .foregroundStyle(.secondary)
-                Link("Changelog", destination: URL(string: "https://github.com/hackmajoris/apprec/releases")!)
+                ChangelogButton(release: updater.latest)
             }
         }
         .padding()
@@ -140,6 +155,7 @@ struct MenuView: View {
             recorder.refreshApps()
             recorder.refreshRecordings()
             Task { await ollama.refresh() }
+            Task { await updater.checkIfStale() }
         }
     }
 }
@@ -148,6 +164,53 @@ extension MenuView {
     private func summarizeAction(for recording: Recording) -> (() -> Void)? {
         guard recording.hasTranscript, ollama.state == .ready || Summarizer.isAppleAvailable else { return nil }
         return { Task { await recorder.summarize(recording.url) } }
+    }
+}
+
+private struct ChangelogButton: View {
+    let release: Updater.Release?
+    @State private var isShown = false
+
+    var body: some View {
+        Button {
+            isShown.toggle()
+        } label: {
+            Image(systemName: "info.circle")
+        }
+        .buttonStyle(.borderless)
+        .help("Changelog")
+        .popover(isPresented: $isShown, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 8) {
+                if let release {
+                    Text("What's new in v\(release.version)").font(.headline)
+                    ForEach(Array(lines(release.body ?? "").enumerated()), id: \.offset) { line($0.element) }
+                } else {
+                    Text("Couldn't load the changelog.").foregroundStyle(.secondary)
+                }
+                Link("All releases", destination: release?.html_url ?? Updater.releasesURL)
+            }
+            .padding(12)
+            .frame(width: 320, alignment: .leading)
+        }
+    }
+
+    private func lines(_ body: String) -> [String] {
+        body.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
+    @ViewBuilder
+    private func line(_ text: String) -> some View {
+        if text.hasPrefix("#") {
+            Text(Self.markdown(text.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces))).font(.subheadline.weight(.semibold))
+        } else if text.hasPrefix("- ") || text.hasPrefix("* ") {
+            Text(Self.markdown("• " + text.dropFirst(2)))
+        } else {
+            Text(Self.markdown(text))
+        }
+    }
+
+    private static func markdown(_ text: String) -> AttributedString {
+        (try? AttributedString(markdown: text)) ?? AttributedString(text)
     }
 }
 

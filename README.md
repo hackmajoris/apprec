@@ -32,7 +32,7 @@ Building from source also needs Xcode 26 or later and [XcodeGen](https://github.
 brew install --cask hackmajoris/apps/apprec
 ```
 
-Update with `brew upgrade --cask apprec`.
+AppRec updates itself: when a new release is out, an **Update** button appears at the bottom of the menu and installs it and relaunches. The cask is marked `auto_updates`, so `brew upgrade` leaves it alone.
 
 AppRec isn't notarized by Apple yet. The cask removes the quarantine flag so macOS doesn't block the app.
 
